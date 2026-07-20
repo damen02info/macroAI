@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -115,7 +114,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
             InteractiveViewer(
               minScale: 0.5,
               maxScale: 4.0,
-              child: Image.network(url, fit: BoxFit.contain),
+              child: Image.network(url, fit: BoxFit.contain, headers: headers),
             ),
             Positioned(
               bottom: 40,
@@ -160,7 +159,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<ProgressProvider>();
     final mediaBaseUrl = provider.apiService.mediaBaseUrl;
-
     final networkHeaders = provider.apiService.mediaHeaders;
 
     return Scaffold(
@@ -240,10 +238,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 imageQuality: 70,
                               );
                               if (image != null && context.mounted) {
-                                provider.uploadPhotoToRecord(
-                                  record.id,
-                                  File(image.path),
-                                );
+                                provider.uploadPhotoToRecord(record.id, image);
                               }
                             },
                           ),

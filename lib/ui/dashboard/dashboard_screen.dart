@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/dashboard_provider.dart';
-import '../profile/profile_screen.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/hybrid_fab.dart';
 import 'widgets/macro_bars.dart';
