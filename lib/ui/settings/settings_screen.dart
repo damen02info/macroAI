@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import '../../providers/dashboard_provider.dart';
 import '../../providers/progress_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,38 +12,28 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _pinCtrl = TextEditingController();
   final TextEditingController _tdeeCtrl = TextEditingController();
   final TextEditingController _proteinCtrl = TextEditingController();
   final TextEditingController _carbsCtrl = TextEditingController();
   final TextEditingController _fatsCtrl = TextEditingController();
 
-  bool _isSyncing = false;
+  bool _isWaitingForPin = false;
+  bool _isLoadingAuth = false;
   bool _isSavingProfile = false;
 
   @override
   void initState() {
     super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final api = context.read<ProgressProvider>().apiService;
-      final currentEmail = api.getCurrentEmail();
-
-      if (currentEmail != null && currentEmail.isNotEmpty) {
-        _emailCtrl.text = currentEmail;
-
-        try {
-          await context.read<ProgressProvider>().fetchHistory();
-          await _loadProfileData();
-        } catch (e) {
-          debugPrint('Error al cargar datos iniciales: $e');
-        }
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkSessionAndLoad();
     });
   }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
+    _pinCtrl.dispose();
     _tdeeCtrl.dispose();
     _proteinCtrl.dispose();
     _carbsCtrl.dispose();
@@ -51,19 +41,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _checkSessionAndLoad() async {
+    final api = context.read<ProgressProvider>().apiService;
+    if (api.hasSession) {
+      _emailCtrl.text = api.getCurrentEmail() ?? '';
+      await _loadProfileData();
+    }
+    setState(() {}); // Refresca UI tras comprobar la sesión
+  }
+
   Future<void> _loadProfileData() async {
     try {
       final api = context.read<ProgressProvider>().apiService;
       final profile = await api.getProfile();
-
-      if (!mounted) return;
-
       if (profile != null) {
         setState(() {
-          _tdeeCtrl.text = profile.tdeeObjetivo.toString();
-          _proteinCtrl.text = profile.metaProteinas.toString();
-          _carbsCtrl.text = profile.metaCarbos.toString();
-          _fatsCtrl.text = profile.metaGrasas.toString();
+          _tdeeCtrl.text = profile.tdeeObjetivo?.toString() ?? '';
+          _proteinCtrl.text = profile.metaProteinas?.toString() ?? '';
+          _carbsCtrl.text = profile.metaCarbos?.toString() ?? '';
+          _fatsCtrl.text = profile.metaGrasas?.toString() ?? '';
         });
       }
     } catch (e) {
@@ -71,167 +67,250 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _syncEmail() async {
+  Future<void> _requestPin() async {
     final email = _emailCtrl.text.trim();
-
     if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Correo inválido')));
+      return;
+    }
+
+    setState(() => _isLoadingAuth = true);
+    final api = context.read<ProgressProvider>().apiService;
+
+    final success = await api.requestPin(email);
+
+    setState(() {
+      _isLoadingAuth = false;
+      if (success) {
+        _isWaitingForPin = true;
+      }
+    });
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Error al enviar el PIN')));
+    }
+  }
+
+  Future<void> _verifyPin() async {
+    final email = _emailCtrl.text.trim();
+    final pin = _pinCtrl.text.trim();
+
+    if (pin.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Introduce un correo válido')),
+        const SnackBar(content: Text('El PIN debe tener 6 dígitos')),
       );
       return;
     }
 
-    setState(() => _isSyncing = true);
+    setState(() => _isLoadingAuth = true);
+    final api = context.read<ProgressProvider>().apiService;
 
-    try {
-      final progressProvider = context.read<ProgressProvider>();
+    final success = await api.verifyPin(email, pin);
 
-      await progressProvider.apiService.setSessionEmail(email);
-
-      await progressProvider.fetchHistory();
-
-      await _loadProfileData();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Datos sincronizados correctamente')),
-      );
-    } catch (e) {
-      debugPrint(e.toString());
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al conectar con el servidor')),
-      );
-    } finally {
+    if (success) {
+      // Recargar datos globales de la app con el nuevo usuario
       if (mounted) {
-        setState(() => _isSyncing = false);
+        await context.read<DashboardProvider>().loadInitialData();
+        await context.read<ProgressProvider>().fetchHistory();
+        await _loadProfileData();
       }
+      setState(() {
+        _isWaitingForPin = false;
+        _pinCtrl.clear();
+      });
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sesión iniciada correctamente')),
+        );
+    } else {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN incorrecto o caducado')),
+        );
     }
+
+    setState(() => _isLoadingAuth = false);
+  }
+
+  Future<void> _logout() async {
+    final api = context.read<ProgressProvider>().apiService;
+    await api.logout();
+
+    // Limpiamos los providers
+    if (mounted) {
+      context.read<DashboardProvider>().historyMeals.clear();
+      context.read<DashboardProvider>().todaysMeals.clear();
+      context.read<ProgressProvider>().weightHistory.clear();
+    }
+
+    setState(() {
+      _emailCtrl.clear();
+      _tdeeCtrl.clear();
+      _proteinCtrl.clear();
+      _carbsCtrl.clear();
+      _fatsCtrl.clear();
+    });
   }
 
   Future<void> _saveProfile() async {
     final api = context.read<ProgressProvider>().apiService;
-
-    final email = api.getCurrentEmail();
-
-    if (email == null || email.isEmpty) {
+    if (!api.hasSession) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Primero debes vincular un correo')),
+        const SnackBar(content: Text('Debes iniciar sesión primero')),
       );
       return;
     }
 
     setState(() => _isSavingProfile = true);
-
     try {
       await api.updateProfile(
-        tdee: double.tryParse(_tdeeCtrl.text) ?? 0,
-        proteinas: double.tryParse(_proteinCtrl.text) ?? 0,
-        carbos: double.tryParse(_carbsCtrl.text) ?? 0,
-        grasas: double.tryParse(_fatsCtrl.text) ?? 0,
+        tdee: double.tryParse(_tdeeCtrl.text) ?? 0.0,
+        proteinas: double.tryParse(_proteinCtrl.text) ?? 0.0,
+        carbos: double.tryParse(_carbsCtrl.text) ?? 0.0,
+        grasas: double.tryParse(_fatsCtrl.text) ?? 0.0,
       );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Perfil nutricional actualizado')),
-      );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Perfil nutricional actualizado')),
+        );
     } catch (e) {
-      debugPrint(e.toString());
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al guardar el perfil')),
-      );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al guardar el perfil')),
+        );
     } finally {
-      if (mounted) {
-        setState(() => _isSavingProfile = false);
-      }
+      if (mounted) setState(() => _isSavingProfile = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final api = context.read<ProgressProvider>().apiService;
+    final isLoggedIn = api.hasSession;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Cuenta de usuario',
+              '1. Cuenta de usuario',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 10),
 
-            const SizedBox(height: 12),
-
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Correo electrónico',
-                prefixIcon: Icon(Icons.email),
-                border: OutlineInputBorder(),
+            if (isLoggedIn) ...[
+              // VISTA: SESIÓN INICIADA
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(
+                  Icons.check_circle,
+                  color: Colors.green,
+                  size: 32,
+                ),
+                title: Text(api.getCurrentEmail() ?? ''),
+                subtitle: const Text('Sesión activa'),
+                trailing: TextButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text(
+                    'Salir',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
               ),
-            ),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _isSyncing ? null : _syncEmail,
-                child: _isSyncing
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Vincular y cargar datos'),
+            ] else ...[
+              // VISTA: LOGIN / OTP
+              TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                enabled: !_isWaitingForPin,
+                // Bloquear email si ya se pidió el PIN
+                decoration: const InputDecoration(
+                  labelText: 'Correo electrónico',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
               ),
-            ),
+              const SizedBox(height: 10),
 
-            const SizedBox(height: 8),
+              if (_isWaitingForPin) ...[
+                TextField(
+                  controller: _pinCtrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  decoration: const InputDecoration(
+                    labelText: 'Código PIN (6 dígitos)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _isWaitingForPin = false;
+                        _pinCtrl.clear();
+                      }),
+                      child: const Text('Cambiar correo'),
+                    ),
+                    const Spacer(),
+                    ElevatedButton(
+                      onPressed: _isLoadingAuth ? null : _verifyPin,
+                      child: _isLoadingAuth
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Verificar PIN'),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 45,
+                  child: ElevatedButton(
+                    onPressed: _isLoadingAuth ? null : _requestPin,
+                    child: _isLoadingAuth
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Enviar PIN por correo'),
+                  ),
+                ),
+              ],
+            ],
+
+            const Divider(height: 40, thickness: 1),
 
             const Text(
-              'Si el correo no existe en la base de datos, se creará automáticamente un perfil nuevo.',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-
-            const SizedBox(height: 30),
-
-            const Divider(),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              'Objetivos nutricionales',
+              '2. Objetivos Nutricionales',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 10),
             TextField(
               controller: _tdeeCtrl,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              enabled: isLoggedIn,
               decoration: const InputDecoration(
-                labelText: 'Calorías diarias (TDEE)',
-                suffixText: 'kcal',
+                labelText: 'Calorías Diarias (TDEE)',
                 border: OutlineInputBorder(),
+                suffixText: 'kcal',
               ),
             ),
-
             const SizedBox(height: 16),
             Row(
               children: [
@@ -241,69 +320,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    enabled: isLoggedIn,
                     decoration: const InputDecoration(
                       labelText: 'Proteínas',
-                      suffixText: 'g',
                       border: OutlineInputBorder(),
+                      suffixText: 'g',
                     ),
                   ),
                 ),
-
-                const SizedBox(width: 12),
-
+                const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _carbsCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    enabled: isLoggedIn,
                     decoration: const InputDecoration(
-                      labelText: 'Carbohidratos',
-                      suffixText: 'g',
+                      labelText: 'Carbos',
                       border: OutlineInputBorder(),
+                      suffixText: 'g',
                     ),
                   ),
                 ),
-
-                const SizedBox(width: 12),
-
+                const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _fatsCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
+                    enabled: isLoggedIn,
                     decoration: const InputDecoration(
                       labelText: 'Grasas',
-                      suffixText: 'g',
                       border: OutlineInputBorder(),
+                      suffixText: 'g',
                     ),
                   ),
                 ),
               ],
             ),
-
-            const SizedBox(height: 20),
-
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              height: 48,
+              height: 45,
               child: FilledButton(
-                onPressed: _isSavingProfile ? null : _saveProfile,
+                onPressed: (!isLoggedIn || _isSavingProfile)
+                    ? null
+                    : _saveProfile,
                 child: _isSavingProfile
                     ? const SizedBox(
-                        width: 22,
-                        height: 22,
+                        height: 20,
+                        width: 20,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
                           color: Colors.white,
+                          strokeWidth: 2,
                         ),
                       )
-                    : const Text('Guardar objetivos'),
+                    : const Text('Guardar Objetivos'),
               ),
             ),
-
-            const SizedBox(height: 24),
           ],
         ),
       ),
