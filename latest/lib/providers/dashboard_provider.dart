@@ -123,10 +123,9 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  void _addMealToUI(MealModel meal) {
+  Future<void> _addMealToUI(MealModel meal) async {
     todaysMeals.add(meal);
-    if (currentPeriod == 'day') historyMeals.add(meal);
-    notifyListeners();
+    await changeHistoryPeriod(currentPeriod);
   }
 
   Future<void> deleteMeal(int id) async {
