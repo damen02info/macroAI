@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +14,8 @@ class HybridFab extends StatelessWidget {
     );
 
     if (image != null && context.mounted) {
-      context.read<DashboardProvider>().processImageInput(File(image.path));
+      // Se pasa el XFile puro, el ApiService ya se encarga de adaptarlo a Web o Móvil
+      context.read<DashboardProvider>().processImageInput(image);
     }
   }
 

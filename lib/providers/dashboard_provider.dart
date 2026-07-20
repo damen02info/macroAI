@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -113,7 +112,8 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> processImageInput(File image) async {
+  // CAMBIO: Recibe dynamic
+  Future<void> processImageInput(dynamic image) async {
     _setLoading(true);
     try {
       final meal = await apiService.sendImage(image);

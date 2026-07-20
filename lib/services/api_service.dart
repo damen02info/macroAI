@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -81,18 +82,29 @@ class ApiService {
     return MealModel.fromJson(response.data);
   }
 
-  Future<MealModel> sendImage(File image) async {
-    final compressed = await ImageCompressor.compress(image);
+  // CAMBIO: Recibe dynamic (XFile) para funcionar en Web y Android
+  Future<MealModel> sendImage(dynamic image) async {
+    FormData formData;
 
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        compressed.path,
-        filename: compressed.path.split('/').last,
-      ),
-    });
+    if (kIsWeb) {
+      // En Web extraemos bytes en memoria (sin usar dart:io ni ImageCompressor)
+      final bytes = await image.readAsBytes();
+      formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: image.name ?? 'meal.jpg'),
+      });
+    } else {
+      // En Android usamos File y tu compresor
+      final File fileImage = File(image.path);
+      final compressed = await ImageCompressor.compress(fileImage);
+      formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          compressed.path,
+          filename: compressed.path.split('/').last,
+        ),
+      });
+    }
 
     final response = await _dio.post('ai', data: formData);
-
     return MealModel.fromJson(response.data);
   }
 
@@ -118,12 +130,25 @@ class ApiService {
 
   Future<void> addWeightRecord(double weight) async => await _dio.post('progress/add', data: {'peso_corporal': weight});
 
-  Future<void> uploadProgressPhoto(int id, File photo) async {
-    String fileName = photo.path.split('/').last;
-    FormData formData = FormData.fromMap({
-      'id': id.toString(),
-      'file': await MultipartFile.fromFile(photo.path, filename: fileName),
-    });
+  // CAMBIO: Recibe dynamic (XFile)
+  Future<void> uploadProgressPhoto(int id, dynamic photo) async {
+    FormData formData;
+
+    if (kIsWeb) {
+      final bytes = await photo.readAsBytes();
+      formData = FormData.fromMap({
+        'id': id.toString(),
+        'file': MultipartFile.fromBytes(bytes, filename: photo.name ?? 'progress.jpg'),
+      });
+    } else {
+      final File filePhoto = File(photo.path);
+      String fileName = filePhoto.path.split('/').last;
+      formData = FormData.fromMap({
+        'id': id.toString(),
+        'file': await MultipartFile.fromFile(filePhoto.path, filename: fileName),
+      });
+    }
+
     await _dio.post('progress/upload-photo', data: formData);
   }
 

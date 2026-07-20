@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/progress_model.dart';
 import '../services/api_service.dart';
@@ -35,7 +34,8 @@ class ProgressProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> uploadPhotoToRecord(int id, File photo) async {
+  // CAMBIO: Recibe dynamic
+  Future<void> uploadPhotoToRecord(int id, dynamic photo) async {
     _setLoading(true);
     try {
       await apiService.uploadProgressPhoto(id, photo);
