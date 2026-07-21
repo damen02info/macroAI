@@ -12,8 +12,8 @@ import '../models/progress_model.dart';
 class ApiService {
   final Dio _dio = Dio();
 
-  final String _webhookUrl = dotenv.env['N8N_WEBHOOK_URL'] ?? '';
-  final String _bearerToken = dotenv.env['N8N_BEARER_TOKEN'] ?? '';
+  final String _webhookUrl = dotenv.env['WEBHOOK_URL'] ?? '';
+  final String _bearerToken = dotenv.env['BEARER_TOKEN'] ?? '';
   final String mediaBaseUrl = dotenv.env['MEDIA_BASE_URL'] ?? '';
   final String _mediaToken = dotenv.env['MEDIA_TOKEN'] ?? '';
 
@@ -220,4 +220,15 @@ class ApiService {
 
   Future<void> deleteWeightRecord(int id) async =>
       await _dio.delete('progress/delete', data: {'id': id});
+
+  Future<List<ProfileModel>> getProfileHistory() async {
+    final response = await _dio.get('profile/all');
+    List data = (response.data is List &&
+            response.data.isNotEmpty &&
+            response.data.first is Map &&
+            response.data.first.containsKey('resultado'))
+        ? response.data.first['resultado']
+        : response.data;
+    return (data).map((json) => ProfileModel.fromJson(json)).toList();
+  }
 }
