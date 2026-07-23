@@ -37,34 +37,17 @@ class HistoryScreen extends StatelessWidget {
                 : ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: grouped.entries.expand((entry) {
-                      final summary = entry.value;
                       return [
                         if (provider.currentPeriod != 'day')
                           Padding(
                             padding: const EdgeInsets.only(top: 20, bottom: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  summary.dateKey,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Objetivo: ${summary.targetKcal.toInt()} Kcal (${summary.targetProtein.toInt()}g Pro, ${summary.targetCarb.toInt()}g Car, ${summary.targetFat.toInt()}g Gra)',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                                Text(
-                                  'Consumido: ${summary.consumedKcal.toInt()} Kcal (${summary.consumedProtein.toInt()}g Pro, ${summary.consumedCarb.toInt()}g Car, ${summary.consumedFat.toInt()}g Gra)',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
+                            child: Text(
+                              entry.key,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
-                        ...summary.meals.map(
-                          (meal) => MealCard(meal: meal),
-                        ),
+                        ...entry.value.map((meal) => MealCard(meal: meal)),
                       ];
                     }).toList(),
                   ),

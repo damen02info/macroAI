@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meal_model.dart';
+import '../models/profile_model.dart'; // Import ProfileModel
+import '../models/daily_history_summary.dart'; // Import DailyHistorySummary
 import '../services/api_service.dart';
 
 class DashboardProvider extends ChangeNotifier {
   final ApiService apiService;
+
+  List<ProfileModel> _profileHistory = []; // Add profile history
 
   // --- ESTADO PERFIL ---
   double targetKcal = 2200;
@@ -24,8 +28,11 @@ class DashboardProvider extends ChangeNotifier {
 
   // --- GETTERS ---
   double get consumedKcal => todaysMeals.fold(0, (s, i) => s + i.calorias);
+
   double get proteinGrams => todaysMeals.fold(0, (s, i) => s + i.proteinas);
+
   double get carbGrams => todaysMeals.fold(0, (s, i) => s + i.carbohidratos);
+
   double get fatGrams => todaysMeals.fold(0, (s, i) => s + i.grasas);
 
   // --- INICIALIZACIÓN ---
@@ -42,6 +49,13 @@ class DashboardProvider extends ChangeNotifier {
       _syncProfile();
       todaysMeals = await apiService.getMealsHistory('day');
       await changeHistoryPeriod('day');
+      _profileHistory = await apiService
+          .getProfileHistory();
+      _profileHistory.sort(
+        (a, b) => DateTime.parse(
+          a.actualizadoEn,
+        ).compareTo(DateTime.parse(b.actualizadoEn)),
+      );
     } catch (e) {
       debugPrint("Error loadInitialData: $e");
     } finally {
@@ -69,7 +83,12 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> saveProfile(double tdee, double pro, double carb, double fat) async {
+  Future<void> saveProfile(
+    double tdee,
+    double pro,
+    double carb,
+    double fat,
+  ) async {
     await apiService.updateProfile(
       tdee: tdee,
       proteinas: pro,
@@ -112,7 +131,6 @@ class DashboardProvider extends ChangeNotifier {
     }
   }
 
-  // CAMBIO: Recibe dynamic
   Future<void> processImageInput(dynamic image) async {
     _setLoading(true);
     try {
@@ -135,12 +153,55 @@ class DashboardProvider extends ChangeNotifier {
     await apiService.deleteMeal(id);
   }
 
-  Map<String, List<MealModel>> get groupedHistoryMeals {
+  Map<String, DailyHistorySummary> get groupedHistoryMeals {
     final sorted = [...historyMeals]
-      ..sort((a, b) => DateTime.parse(b.fechaHora).compareTo(DateTime.parse(a.fechaHora)));
+      ..sort(
+        (a, b) =>
+            DateTime.parse(b.fechaHora).compareTo(DateTime.parse(a.fechaHora)),
+      );
 
     if (currentPeriod == 'day') {
-      return {'': sorted};
+      final mealsForToday = sorted.where((meal) {
+        final mealDate = DateTime.parse(meal.fechaHora).toLocal();
+        final today = DateTime.now().toLocal();
+        return mealDate.year == today.year &&
+            mealDate.month == today.month &&
+            mealDate.day == today.day;
+      }).toList();
+
+      final currentTargets = _getCurrentTargets();
+
+      final consumedKcal = mealsForToday.fold(
+        0.0,
+        (sum, item) => sum + item.calorias,
+      );
+      final consumedProtein = mealsForToday.fold(
+        0.0,
+        (sum, item) => sum + item.proteinas,
+      );
+      final consumedCarb = mealsForToday.fold(
+        0.0,
+        (sum, item) => sum + item.carbohidratos,
+      );
+      final consumedFat = mealsForToday.fold(
+        0.0,
+        (sum, item) => sum + item.grasas,
+      );
+
+      return {
+        '': DailyHistorySummary(
+          dateKey: '',
+          meals: mealsForToday,
+          consumedKcal: consumedKcal,
+          consumedProtein: consumedProtein,
+          consumedCarb: consumedCarb,
+          consumedFat: consumedFat,
+          targetKcal: currentTargets.tdeeObjetivo,
+          targetProtein: currentTargets.metaProteinas,
+          targetCarb: currentTargets.metaCarbos,
+          targetFat: currentTargets.metaGrasas,
+        ),
+      };
     }
 
     final groups = <String, List<MealModel>>{};
@@ -151,23 +212,127 @@ class DashboardProvider extends ChangeNotifier {
       late final String key;
 
       if (currentPeriod == 'week') {
-        key = DateFormat(
-          'EEEE d MMMM',
-          'es_ES',
-        ).format(fecha);
-      } else {
+        key = DateFormat('EEEE d MMMM', 'es_ES').format(fecha);
+      } else if (currentPeriod == 'month') {
         final monday = fecha.subtract(Duration(days: fecha.weekday - 1));
         final sunday = monday.add(const Duration(days: 6));
 
         key =
-        'Semana ${DateFormat('d MMM').format(monday)} - ${DateFormat('d MMM').format(sunday)}';
+            'Semana ${DateFormat('d MMM').format(monday)} - ${DateFormat('d MMM').format(sunday)}';
       }
 
       groups.putIfAbsent(key, () => []);
       groups[key]!.add(meal);
     }
 
-    return groups;
+    final Map<String, DailyHistorySummary> summaryGroups = {};
+    for (final entry in groups.entries) {
+      final mealsInGroup =
+          entry.value;
+      if (mealsInGroup.isEmpty) continue;
+
+      final consumedKcal = mealsInGroup.fold(
+        0.0,
+        (sum, item) => sum + item.calorias,
+      );
+      final consumedProtein = mealsInGroup.fold(
+        0.0,
+        (sum, item) => sum + item.proteinas,
+      );
+      final consumedCarb = mealsInGroup.fold(
+        0.0,
+        (sum, item) => sum + item.carbohidratos,
+      );
+      final consumedFat = mealsInGroup.fold(
+        0.0,
+        (sum, item) => sum + item.grasas,
+      );
+
+      double finalTargetKcal = 0.0;
+      double finalTargetProtein = 0.0;
+      double finalTargetCarb = 0.0;
+      double finalTargetFat = 0.0;
+
+      if (currentPeriod == 'week') {
+        final dateOfDay = DateTime.parse(
+          mealsInGroup.first.fechaHora,
+        ).toLocal();
+        final dailyTargets = _getProfileTargetsForDate(dateOfDay);
+        finalTargetKcal = dailyTargets.tdeeObjetivo;
+        finalTargetProtein = dailyTargets.metaProteinas;
+        finalTargetCarb = dailyTargets.metaCarbos;
+        finalTargetFat = dailyTargets.metaGrasas;
+      } else if (currentPeriod == 'month') {
+        final DateFormat formatter = DateFormat('d MMM');
+        final String dateString = entry.key
+            .split(' - ')
+            .first
+            .replaceAll('Semana ', '');
+
+        DateTime weekStartDate;
+        try {
+          weekStartDate = formatter.parse(dateString);
+        } catch (e) {
+          debugPrint(
+            "Error parsing week start date from key: $e. Key: ${entry.key}",
+          );
+          weekStartDate = DateTime.now();
+        }
+
+        for (int i = 0; i < 7; i++) {
+          final dayDate = weekStartDate.add(Duration(days: i));
+          final dailyTargets = _getProfileTargetsForDate(dayDate);
+          finalTargetKcal += dailyTargets.tdeeObjetivo;
+          finalTargetProtein += dailyTargets.metaProteinas;
+          finalTargetCarb += dailyTargets.metaCarbos;
+          finalTargetFat += dailyTargets.metaGrasas;
+        }
+      }
+
+      summaryGroups[entry.key] = DailyHistorySummary(
+        dateKey: entry.key,
+        meals: mealsInGroup,
+        consumedKcal: consumedKcal,
+        consumedProtein: consumedProtein,
+        consumedCarb: consumedCarb,
+        consumedFat: consumedFat,
+        targetKcal: finalTargetKcal,
+        targetProtein: finalTargetProtein,
+        targetCarb: finalTargetCarb,
+        targetFat: finalTargetFat,
+      );
+    }
+
+    return summaryGroups;
+  }
+
+  ProfileModel _getCurrentTargets() {
+    return ProfileModel(
+      id: 0,
+      tdeeObjetivo: targetKcal,
+      metaProteinas: proteinTarget,
+      metaCarbos: carbTarget,
+      metaGrasas: fatTarget,
+      actualizadoEn: DateTime.now().toIso8601String(),
+    );
+  }
+
+  ProfileModel _getProfileTargetsForDate(DateTime date) {
+    ProfileModel? closestProfile;
+
+    for (final profile in _profileHistory) {
+      final profileDate = DateTime.parse(profile.actualizadoEn).toLocal();
+      if (profileDate.isBefore(date) || profileDate.isAtSameMomentAs(date)) {
+        if (closestProfile == null ||
+            DateTime.parse(
+              closestProfile.actualizadoEn,
+            ).isBefore(profileDate)) {
+          closestProfile = profile;
+        }
+      }
+    }
+
+    return closestProfile ?? _getCurrentTargets();
   }
 
   void _setLoading(bool v) {

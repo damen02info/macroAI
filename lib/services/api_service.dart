@@ -220,15 +220,4 @@ class ApiService {
 
   Future<void> deleteWeightRecord(int id) async =>
       await _dio.delete('progress/delete', data: {'id': id});
-
-  Future<List<ProfileModel>> getProfileHistory() async {
-    final response = await _dio.get('profile/all');
-    List data = (response.data is List &&
-            response.data.isNotEmpty &&
-            response.data.first is Map &&
-            response.data.first.containsKey('resultado'))
-        ? response.data.first['resultado']
-        : response.data;
-    return (data).map((json) => ProfileModel.fromJson(json)).toList();
-  }
 }
