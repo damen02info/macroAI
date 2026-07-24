@@ -40,5 +40,5 @@ jobs:
       - name: Trigger n8n Deployment Webhook
         run: |
           curl -X POST "${{ secrets.WEBHOOK_URL }}" \
-            -H "Authorization: Bearer ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -H "X-API-KEY: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
             -F "data=@dist.tar.gz"
