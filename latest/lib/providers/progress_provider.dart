@@ -34,7 +34,6 @@ class ProgressProvider extends ChangeNotifier {
     }
   }
 
-  // CAMBIO: Recibe dynamic
   Future<void> uploadPhotoToRecord(int id, dynamic photo) async {
     _setLoading(true);
     try {

@@ -1,0 +1,44 @@
+name: CI/CD Flutter MacroAI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Create .env file
+        run: |
+          cat << EOF > .env
+          WEBHOOK_URL=${{ secrets.APP_WEBHOOK_URL }}
+          MEDIA_BASE_URL=${{ secrets.APP_MEDIA_BASE_URL }}
+          APP_AUTH_HEADER=${{ secrets.APP_AUTH_HEADER }}
+          EOF
+
+      - name: Build Flutter Web (Production)
+        run: flutter build web --release
+
+      - name: Compress Build Output
+        run: |
+          cd build/web
+          tar -czf ../../dist.tar.gz .
+
+      - name: Trigger n8n Deployment Webhook
+        run: |
+          curl -X POST "${{ secrets.WEBHOOK_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -F "data=@dist.tar.gz"
