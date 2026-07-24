@@ -30,7 +30,7 @@ jobs:
           EOF
 
       - name: Build Flutter Web (Production)
-        run: flutter build web --release
+        run: flutter build web --release -t latest/lib/main.dart
 
       - name: Compress Build Output
         run: |
