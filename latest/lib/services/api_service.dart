@@ -13,17 +13,18 @@ class ApiService {
   final Dio _dio = Dio();
 
   final String _webhookUrl = dotenv.env['WEBHOOK_URL'] ?? '';
-  final String _bearerToken = dotenv.env['BEARER_TOKEN'] ?? '';
   final String mediaBaseUrl = dotenv.env['MEDIA_BASE_URL'] ?? '';
-  final String _mediaToken = dotenv.env['MEDIA_TOKEN'] ?? '';
+  final String _proxyToken = dotenv.env['APP_AUTH_HEADER'] ?? '';
 
   String? _currentUserEmail;
 
   ApiService() {
     _dio.options.baseUrl = _webhookUrl;
-    _dio.options.headers['Authorization'] = 'Bearer $_bearerToken';
+    _dio.options.headers['X-App-Auth'] = _proxyToken;
     _dio.options.connectTimeout = const Duration(seconds: 30);
   }
+
+  Map<String, String> get mediaHeaders => {'X-App-Auth': _proxyToken};
 
   // --- SESIÓN Y PERSISTENCIA (SISTEMA OTP) ---
 
@@ -91,8 +92,8 @@ class ApiService {
       if (response.data == null) return null;
       if (response.data is List && response.data.isNotEmpty) {
         final res =
-            response.data.first is Map &&
-                response.data.first.containsKey('resultado')
+        response.data.first is Map &&
+            response.data.first.containsKey('resultado')
             ? response.data.first['resultado'].first
             : response.data.first;
         return ProfileModel.fromJson(res);
@@ -127,12 +128,10 @@ class ApiService {
     return MealModel.fromJson(response.data);
   }
 
-  // CAMBIO: Recibe dynamic (XFile) para funcionar en Web y Android
   Future<MealModel> sendImage(dynamic image) async {
     FormData formData;
 
     if (kIsWeb) {
-      // En Web extraemos bytes en memoria (sin usar dart:io ni ImageCompressor)
       final bytes = await image.readAsBytes();
       formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(
@@ -141,7 +140,6 @@ class ApiService {
         ),
       });
     } else {
-      // En Android usamos File y tu compresor
       final File fileImage = File(image.path);
       final compressed = await ImageCompressor.compress(fileImage);
       formData = FormData.fromMap({
@@ -159,10 +157,10 @@ class ApiService {
   Future<List<MealModel>> getMealsHistory(String period) async {
     final response = await _dio.get('history/$period');
     List data =
-        (response.data is List &&
-            response.data.isNotEmpty &&
-            response.data.first is Map &&
-            response.data.first.containsKey('resultado'))
+    (response.data is List &&
+        response.data.isNotEmpty &&
+        response.data.first is Map &&
+        response.data.first.containsKey('resultado'))
         ? response.data.first['resultado']
         : response.data;
     return (data).map((json) => MealModel.fromJson(json)).toList();
@@ -176,10 +174,10 @@ class ApiService {
   Future<List<ProgressModel>> getProgressHistory() async {
     final response = await _dio.get('progress/history');
     List data =
-        (response.data is List &&
-            response.data.isNotEmpty &&
-            response.data.first is Map &&
-            response.data.first.containsKey('resultado'))
+    (response.data is List &&
+        response.data.isNotEmpty &&
+        response.data.first is Map &&
+        response.data.first.containsKey('resultado'))
         ? response.data.first['resultado']
         : response.data;
     return (data).map((json) => ProgressModel.fromJson(json)).toList();
@@ -188,7 +186,6 @@ class ApiService {
   Future<void> addWeightRecord(double weight) async =>
       await _dio.post('progress/add', data: {'peso_corporal': weight});
 
-  // CAMBIO: Recibe dynamic (XFile)
   Future<void> uploadProgressPhoto(int id, dynamic photo) async {
     FormData formData;
 
@@ -216,17 +213,15 @@ class ApiService {
     await _dio.post('progress/upload-photo', data: formData);
   }
 
-  Map<String, String> get mediaHeaders => {'apptoken': _mediaToken};
-
   Future<void> deleteWeightRecord(int id) async =>
       await _dio.delete('progress/delete', data: {'id': id});
 
   Future<List<ProfileModel>> getProfileHistory() async {
     final response = await _dio.get('profile/all');
     List data = (response.data is List &&
-            response.data.isNotEmpty &&
-            response.data.first is Map &&
-            response.data.first.containsKey('resultado'))
+        response.data.isNotEmpty &&
+        response.data.first is Map &&
+        response.data.first.containsKey('resultado'))
         ? response.data.first['resultado']
         : response.data;
     return (data).map((json) => ProfileModel.fromJson(json)).toList();
