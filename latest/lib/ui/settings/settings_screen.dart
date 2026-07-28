@@ -194,194 +194,217 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '1. Cuenta de usuario',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-
-            if (isLoggedIn) ...[
-              // VISTA: SESIÓN INICIADA
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 32,
-                ),
-                title: Text(api.getCurrentEmail() ?? ''),
-                subtitle: const Text('Sesión activa'),
-                trailing: TextButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text(
-                    'Salir',
-                    style: TextStyle(color: Colors.red),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '1. Cuenta de usuario',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-              ),
-            ] else ...[
-              // VISTA: LOGIN / OTP
-              TextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                enabled: !_isWaitingForPin,
-                // Bloquear email si ya se pidió el PIN
-                decoration: const InputDecoration(
-                  labelText: 'Correo electrónico',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
-                ),
-              ),
-              const SizedBox(height: 10),
+                  const SizedBox(height: 10),
 
-              if (_isWaitingForPin) ...[
-                TextField(
-                  controller: _pinCtrl,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Código PIN (6 dígitos)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => setState(() {
-                        _isWaitingForPin = false;
-                        _pinCtrl.clear();
-                      }),
-                      child: const Text('Cambiar correo'),
+                  if (isLoggedIn) ...[
+                    // VISTA: SESIÓN INICIADA
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 32,
+                      ),
+                      title: Text(api.getCurrentEmail() ?? ''),
+                      subtitle: const Text('Sesión activa'),
+                      trailing: TextButton.icon(
+                        onPressed: _logout,
+                        icon: const Icon(Icons.logout, color: Colors.red),
+                        label: const Text(
+                          'Salir',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
                     ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: _isLoadingAuth ? null : _verifyPin,
-                      child: _isLoadingAuth
+                  ] else ...[
+                    // VISTA: LOGIN / OTP
+                    TextField(
+                      controller: _emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      enabled: !_isWaitingForPin,
+                      // Bloquear email si ya se pidió el PIN
+                      decoration: const InputDecoration(
+                        labelText: 'Correo electrónico',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.email),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    if (_isWaitingForPin) ...[
+                      TextField(
+                        controller: _pinCtrl,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        decoration: const InputDecoration(
+                          labelText: 'Código PIN (6 dígitos)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.lock),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed: () => setState(() {
+                              _isWaitingForPin = false;
+                              _pinCtrl.clear();
+                            }),
+                            child: const Text('Cambiar correo'),
+                          ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: _isLoadingAuth ? null : _verifyPin,
+                            child: _isLoadingAuth
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Verificar PIN'),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 45,
+                        child: ElevatedButton(
+                          onPressed: _isLoadingAuth ? null : _requestPin,
+                          child: _isLoadingAuth
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Enviar PIN por correo'),
+                        ),
+                      ),
+                    ],
+                  ],
+
+                  const Divider(height: 40, thickness: 1),
+
+                  const Text(
+                    '2. Objetivos Nutricionales',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _tdeeCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    enabled: isLoggedIn,
+                    decoration: const InputDecoration(
+                      labelText: 'Calorías Diarias (TDEE)',
+                      border: OutlineInputBorder(),
+                      suffixText: 'kcal',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _proteinCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          enabled: isLoggedIn,
+                          decoration: const InputDecoration(
+                            labelText: 'Proteínas',
+                            border: OutlineInputBorder(),
+                            suffixText: 'g',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _carbsCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          enabled: isLoggedIn,
+                          decoration: const InputDecoration(
+                            labelText: 'Carbos',
+                            border: OutlineInputBorder(),
+                            suffixText: 'g',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _fatsCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          enabled: isLoggedIn,
+                          decoration: const InputDecoration(
+                            labelText: 'Grasas',
+                            border: OutlineInputBorder(),
+                            suffixText: 'g',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 45,
+                    child: FilledButton(
+                      onPressed: (!isLoggedIn || _isSavingProfile)
+                          ? null
+                          : _saveProfile,
+                      child: _isSavingProfile
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
                             )
-                          : const Text('Verificar PIN'),
+                          : const Text('Guardar Objetivos'),
                     ),
-                  ],
-                ),
-              ] else ...[
-                SizedBox(
-                  width: double.infinity,
-                  height: 45,
-                  child: ElevatedButton(
-                    onPressed: _isLoadingAuth ? null : _requestPin,
-                    child: _isLoadingAuth
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Enviar PIN por correo'),
                   ),
-                ),
-              ],
-            ],
-
-            const Divider(height: 40, thickness: 1),
-
-            const Text(
-              '2. Objetivos Nutricionales',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _tdeeCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              enabled: isLoggedIn,
-              decoration: const InputDecoration(
-                labelText: 'Calorías Diarias (TDEE)',
-                border: OutlineInputBorder(),
-                suffixText: 'kcal',
+                  const SizedBox(height: 30),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _proteinCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    enabled: isLoggedIn,
-                    decoration: const InputDecoration(
-                      labelText: 'Proteínas',
-                      border: OutlineInputBorder(),
-                      suffixText: 'g',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _carbsCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    enabled: isLoggedIn,
-                    decoration: const InputDecoration(
-                      labelText: 'Carbos',
-                      border: OutlineInputBorder(),
-                      suffixText: 'g',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _fatsCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    enabled: isLoggedIn,
-                    decoration: const InputDecoration(
-                      labelText: 'Grasas',
-                      border: OutlineInputBorder(),
-                      suffixText: 'g',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 45,
-              child: FilledButton(
-                onPressed: (!isLoggedIn || _isSavingProfile)
-                    ? null
-                    : _saveProfile,
-                child: _isSavingProfile
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text('Guardar Objetivos'),
+          ),
+          const Positioned(
+            bottom: 16,
+            left: 16,
+            child: Text(
+              'v0.04',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

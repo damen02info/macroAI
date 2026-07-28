@@ -30,38 +30,22 @@ class DashboardScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: const HybridFab(),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                const ProgressRing(),
-                const SizedBox(height: 32),
-                MacroBars(
-                  proteinGrams: provider.proteinGrams,
-                  proteinTarget: provider.proteinTarget,
-                  carbGrams: provider.carbGrams,
-                  carbTarget: provider.carbTarget,
-                  fatGrams: provider.fatGrams,
-                  fatTarget: provider.fatTarget,
-                ),
-              ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const ProgressRing(),
+            const SizedBox(height: 32),
+            MacroBars(
+              proteinGrams: provider.proteinGrams,
+              proteinTarget: provider.proteinTarget,
+              carbGrams: provider.carbGrams,
+              carbTarget: provider.carbTarget,
+              fatGrams: provider.fatGrams,
+              fatTarget: provider.fatTarget,
             ),
-          ),
-          const Positioned(
-            bottom: 16,
-            left: 16,
-            child: Text(
-              'v0.04',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
