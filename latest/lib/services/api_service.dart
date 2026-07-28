@@ -226,4 +226,36 @@ class ApiService {
         : response.data;
     return (data).map((json) => ProfileModel.fromJson(json)).toList();
   }
+
+  // --- EDICIÓN Y REFINAMIENTO DE COMIDAS ---
+
+  Future<MealModel> updateMeal(int id, String nombre, double kcal, double pro, double carb, double fat) async {
+    final response = await _dio.put('meal/update', data: {
+      'id': id,
+      'nombre': nombre,
+      'calorias': kcal,
+      'proteinas': pro,
+      'carbohidratos': carb,
+      'grasas': fat,
+    });
+
+    final data = (response.data is List && response.data.isNotEmpty && response.data.first is Map && response.data.first.containsKey('resultado'))
+        ? response.data.first['resultado'].first
+        : response.data;
+
+    return MealModel.fromJson(data);
+  }
+
+  Future<MealModel> refineMeal(int id, String prompt) async {
+    final response = await _dio.post('meal/refine', data: {
+      'id': id,
+      'prompt': prompt,
+    });
+
+    final data = (response.data is List && response.data.isNotEmpty && response.data.first is Map && response.data.first.containsKey('resultado'))
+        ? response.data.first['resultado'].first
+        : response.data;
+
+    return MealModel.fromJson(data);
+  }
 }
