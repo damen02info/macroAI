@@ -339,4 +339,39 @@ class DashboardProvider extends ChangeNotifier {
     isLoading = v;
     notifyListeners();
   }
+
+  // --- EDICIÓN Y REFINAMIENTO ---
+  Future<void> updateMealManual(int id, String newName, double kcal, double pro, double carb, double fat) async {
+    _setLoading(true);
+    try {
+      final updatedMeal = await apiService.updateMeal(id, newName, kcal, pro, carb, fat);
+      _replaceMealInState(updatedMeal);
+    } catch (e) {
+      debugPrint("Error actualizando manual: $e");
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> refineMealWithPrompt(int id, String prompt) async {
+    _setLoading(true);
+    try {
+      final updatedMeal = await apiService.refineMeal(id, prompt);
+      _replaceMealInState(updatedMeal);
+    } catch (e) {
+      debugPrint("Error refinando con IA: $e");
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  void _replaceMealInState(MealModel updatedMeal) {
+    final todayIndex = todaysMeals.indexWhere((m) => m.id == updatedMeal.id);
+    if (todayIndex != -1) todaysMeals[todayIndex] = updatedMeal;
+
+    final historyIndex = historyMeals.indexWhere((m) => m.id == updatedMeal.id);
+    if (historyIndex != -1) historyMeals[historyIndex] = updatedMeal;
+
+    notifyListeners();
+  }
 }
