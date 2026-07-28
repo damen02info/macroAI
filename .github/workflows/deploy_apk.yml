@@ -1,0 +1,43 @@
+name: Build and Send APK to n8n
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-send:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Create .env file
+        run: |
+          cat << EOF > .env
+          WEBHOOK_URL=${{ secrets.APP_WEBHOOK_URL }}
+          MEDIA_BASE_URL=${{ secrets.APP_MEDIA_BASE_URL }}
+          APP_AUTH_HEADER=${{ secrets.APP_AUTH_HEADER }}
+          EOF
+
+      - name: Build APK (Production)
+        run: flutter build apk --release -t latest/lib/main.dart
+
+      - name: Send APK to n8n Webhook
+        run: |
+          curl -X POST "${{ secrets.WEBHOOK_APK_URL }}" \
+            -H "X-API-KEY: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}" \
+            -F "data=@build/app/outputs/flutter-apk/app-release.apk"
